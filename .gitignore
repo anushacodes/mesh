@@ -9,3 +9,5 @@ wheels/
 # Virtual environments
 .venv
 todo.md
+uv.lock
+todo2.md
