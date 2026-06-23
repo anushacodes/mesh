@@ -5,10 +5,10 @@ from .database import Base, engine
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), index=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), index=True, nullable=False)
     email = Column(String(80), unique=True, index=True)
-    password = Column(String(100))
+    hashed_password = Column(String(100))
 
     # boards = relationship("Board")
 
