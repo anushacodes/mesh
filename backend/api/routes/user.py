@@ -34,7 +34,7 @@ def get_user(id: int, db: Session = Depends(get_db)):
 
 
 # update user endpoint
-@user_router.patch("/{id}", response_model=userUpdate, status_code = 200)
+@user_router.patch("/{id}", response_model=userOut, status_code = 200)
 def update_user(id: int, user: userUpdate, db: Session = Depends(get_db)):
 #     users[id] = user.model_dump()
 #     return {"message": "User updated successfully"}

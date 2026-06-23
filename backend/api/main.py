@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes.user import user_router
+from .routes.auth import auth_router
 from .database.db_schema import create_tables
 
 from contextlib import asynccontextmanager
@@ -27,6 +28,10 @@ app.add_middleware(
 app.include_router(user_router, 
                    prefix="/app/user", 
                    tags=["users"])
+
+app.include_router(auth_router,
+                   prefix="/app/auth",
+                   tags=["auth"])
 
 
 @app.get("/health", status_code = 200)
