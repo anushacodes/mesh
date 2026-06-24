@@ -4,12 +4,12 @@ from sqlalchemy.orm import Session
 
 from ..database.database import get_db
 from ..database.db_schema import User
-from ..schemas.userschema import userIn, userOut, userUpdate
+from ..schemas import userIn, userOut, userUpdate
 
 user_router = APIRouter()
 
 # create user endpoint
-@user_router.post("/", response_model=userOut, status_code = 201)
+@user_router.post("/", response_model=userOut, status_code = 201, include_in_schema=False)
 def create_user(user: userIn, db: Session = Depends(get_db)):
 #   users[user.id] = user.model_dump()
 #   return {"message": "User created successfully"}  
@@ -55,7 +55,6 @@ def update_user(id: int, user: userUpdate, db: Session = Depends(get_db)):
 
 
 # delete user endpoint
-
 @user_router.delete("/{id}", status_code = 204)
 def delete_user(id: int, db: Session = Depends(get_db)):
 #     del users[id]
