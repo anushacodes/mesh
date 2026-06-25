@@ -1,9 +1,13 @@
+
+# expected input from user
+
 from pydantic import BaseModel, EmailStr
 
 # user schemas
 class userIn(BaseModel):
     name: str
     email: EmailStr
+    role: str 
     password: str
 
 class userOut(BaseModel):
