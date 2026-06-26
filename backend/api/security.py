@@ -1,47 +1,89 @@
+""" auth dependencies and helper functions """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt
 from passlib.context import CryptContext
-from passlib.exc import UnknownHashError
+from jose import JWTError, jwt
 
-# from .schemas import UserRegister, UserToken
+from .schemas import UserRegister, UserToken
 from .database.session import get_db
 from .database.schema import User
 
 auth_router = APIRouter()
 
+
 SECRET_KEY = "d203ed9aace9b7c13c47d46254a2222f285bad6973762db56d6560188fac3f58" # openssl rand -hex 32
 algorithm = "HS256"
-access_token_expire_minutes = 60
+# access_token_expire_minutes = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+pwd_context = CryptContext(schemes = ["bcrypt"], deprecated = "auto")
+oauth2scheme = OAuth2PasswordBearer(tokenUrl = "/app/auth/login")
+
 
 
 # [registration] user enters password -> hashed -> stored in DB
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
+
 # [login] user enters password -> compared against DB hash -> returns bool
 def verify_password(password: str, hashed: str) -> bool:
-    try:
-        return pwd_context.verify(password, hashed)
-    except UnknownHashError:
-        return password == hashed
+    return pwd_context.verify(password, hashed)
+
 
 
 # [login] user logs in -> Create JWT -> returns token
 def create_access_token(data: dict) -> str:
-    return jwt.encode(data, SECRET_KEY, algorithm=algorithm)
+    return jwt.encode(data, 
+                      SECRET_KEY, 
+                      algorithm = algorithm)
+
+
 
 # [login] receive and decode JWT -> returns user ID 
 # (only checks if the token is valid)
 def decode_access_token(token: str):
-    pass
+    try:
+        token_data = jwt.decode(token, 
+                             SECRET_KEY, 
+                             algorithms = [algorithm])
+        return token_data
+    
+    except JWTError:
+        raise HTTPException(
+            status_code = 401,
+            detail = "invalid token")
+    
+
+
+
 
 # [protected routes] call decode_access_token -> get user id -> fetch from db -> return user object
 # (uses the decoded token to actually fetch the user)
-def get_current_user():
-    pass
+def get_current_user(token: str = Depends(oauth2scheme), db: Session = Depends(get_db)):
+    token_data = decode_access_token(token)
+    id = token_data.get("sub")
+
+    if id is None:
+        raise HTTPException(
+            status_code = 401,
+            detail = "invalid token")
+    
+    user = db.query(User).filter(User.id == id).first()
+
+    if user is None:
+            raise HTTPException(
+            status_code = 401,
+            detail = "user does not exist")
+    
+    return user
+
+def get_current_active_user(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.is_active is False:
+        raise HTTPException(status_code = 401, 
+                            detail = "inactive user")
+    
+    return current_user

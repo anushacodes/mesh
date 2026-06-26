@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Boolean
 from sqlalchemy.orm import relationship
 from .session import Base, engine
 
@@ -10,6 +10,7 @@ class User(Base):
     email = Column(String(80), unique=True, index=True)
     role = Column(String(20), default="user") # make enum later
     hashed_password = Column(String(100))
+    is_active = Column(Boolean, default=True) 
 
     # boards = relationship("Board")
 
