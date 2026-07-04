@@ -10,6 +10,7 @@ UserToken: the login response.
 TokenData: an internal helper used after decoding a JWT.
 """
 
+from datetime import datetime
 from pydantic import BaseModel, EmailStr
 
 # shared user fields
@@ -79,3 +80,26 @@ class TaskOut(TaskBase):
 
     class Config:
         from_attributes = True
+
+
+# team schemas
+class TeamBase(BaseModel):
+    name: str
+    description: str | None = None
+
+class TeamCreate(TeamBase):
+    pass
+
+class TeamUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+class TeamOut(TeamBase):
+    id: int
+    owner_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+

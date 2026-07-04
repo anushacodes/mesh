@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from .session import Base, engine
 
 class User(Base):
@@ -13,6 +14,7 @@ class User(Base):
     is_active = Column(Boolean, default=True) 
 
     tasks = relationship("Task", back_populates="owner")
+    teams = relationship("Team", back_populates="owner", cascade="all, delete-orphan")
 
 
 class Task(Base):
@@ -29,6 +31,20 @@ class Task(Base):
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     owner = relationship("User", back_populates="tasks")
+
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    description = Column(String(500), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    owner = relationship("User", back_populates="teams")
 
     
 def create_tables():
