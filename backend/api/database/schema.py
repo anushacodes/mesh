@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from .session import Base, engine
 
@@ -12,7 +12,23 @@ class User(Base):
     hashed_password = Column(String(100))
     is_active = Column(Boolean, default=True) 
 
-    # boards = relationship("Board")
+    tasks = relationship("Task", back_populates="owner")
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(200), nullable=False)
+    description = Column(String(500), nullable=True)
+    status = Column(String(50), default="todo")
+    priority = Column(String(50), default="medium")
+    start_date = Column(String(50), nullable=True)
+    end_date = Column(String(50), nullable=True)
+    tags = Column(String(200), nullable=True)  # comma-separated
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    owner = relationship("User", back_populates="tasks")
 
     
 def create_tables():

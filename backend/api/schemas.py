@@ -49,3 +49,33 @@ class UserUpdate(BaseModel):
     name: str | None = None
     email: EmailStr | None = None
     password: str | None = None
+
+
+# task responses
+class TaskBase(BaseModel):
+    title: str
+    description: str | None = None
+    status: str | None = "todo"
+    priority: str | None = "medium"
+    start_date: str | None = None
+    end_date: str | None = None
+    tags: str | None = None  # comma-separated string
+
+class TaskCreate(TaskBase):
+    pass
+
+class TaskUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = None
+    priority: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    tags: str | None = None
+
+class TaskOut(TaskBase):
+    id: int
+    owner_id: int
+
+    class Config:
+        from_attributes = True
