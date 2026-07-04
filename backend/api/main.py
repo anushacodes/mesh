@@ -4,17 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routes.user import user_router
 from .routes.auth import auth_router
 from .routes.task import task_router
-from .database.schema import create_tables
+# from .database.schema import create_tables
 
-from contextlib import asynccontextmanager
+# from contextlib import asynccontextmanager
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    create_tables()
-    yield
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     create_tables()
+#     yield
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI()
 
 # CORS middleware
 app.add_middleware(
