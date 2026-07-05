@@ -9,7 +9,8 @@ team_router = APIRouter()
 
 
 @team_router.post("/", response_model=TeamOut, status_code=status.HTTP_201_CREATED)
-def create_team(team: TeamCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def create_team(team: TeamCreate, db: Session = Depends(get_db), 
+                current_user: User = Depends(get_current_active_user)):
     """Create a new team. The creator is set as the owner."""
     db_team = Team(**team.model_dump(), owner_id=current_user.id)
     db.add(db_team)
@@ -19,13 +20,15 @@ def create_team(team: TeamCreate, db: Session = Depends(get_db), current_user: U
 
 
 @team_router.get("/", response_model=list[TeamOut])
-def get_teams(db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def get_teams(db: Session = Depends(get_db), 
+              current_user: User = Depends(get_current_active_user)):
     """List all teams owned by the current user."""
     return db.query(Team).filter(Team.owner_id == current_user.id).all()
 
 
 @team_router.get("/{team_id}", response_model=TeamOut)
-def get_team(team_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def get_team(team_id: int, db: Session = Depends(get_db), 
+             current_user: User = Depends(get_current_active_user)):
     """Retrieve details of a specific team (restricted to owner)."""
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
@@ -36,7 +39,8 @@ def get_team(team_id: int, db: Session = Depends(get_db), current_user: User = D
 
 
 @team_router.patch("/{team_id}", response_model=TeamOut)
-def update_team(team_id: int, team: TeamUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def update_team(team_id: int, team: TeamUpdate, db: Session = Depends(get_db), 
+                current_user: User = Depends(get_current_active_user)):
     """Update team details (restricted to owner)."""
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
@@ -53,7 +57,8 @@ def update_team(team_id: int, team: TeamUpdate, db: Session = Depends(get_db), c
 
 
 @team_router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_team(team_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def delete_team(team_id: int, db: Session = Depends(get_db), 
+                current_user: User = Depends(get_current_active_user)):
     """Delete a team (restricted to owner)."""
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
@@ -66,7 +71,8 @@ def delete_team(team_id: int, db: Session = Depends(get_db), current_user: User 
 
 
 @team_router.post("/{team_id}/members", response_model=TeamMemberOut, status_code=status.HTTP_201_CREATED)
-def add_team_member(team_id: int, member: TeamMemberAdd, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def add_team_member(team_id: int, member: TeamMemberAdd, db: Session = Depends(get_db), 
+                    current_user: User = Depends(get_current_active_user)):
     """Add a user to a team by looking up their email."""
     # Ensure team exists and user owns it
     db_team = db.query(Team).filter(Team.id == team_id).first()
@@ -104,7 +110,8 @@ def add_team_member(team_id: int, member: TeamMemberAdd, db: Session = Depends(g
 
 
 @team_router.get("/{team_id}/members", response_model=list[TeamMemberOut])
-def get_team_members(team_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def get_team_members(team_id: int, db: Session = Depends(get_db), 
+                     current_user: User = Depends(get_current_active_user)):
     """List all members of a specific team (restricted to owner)."""
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
