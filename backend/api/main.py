@@ -56,3 +56,5 @@ app.include_router(team_router,
 @app.get("/health", status_code = 200)
 def health():
     return {"status": "running!"}
+
+

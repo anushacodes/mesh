@@ -21,6 +21,12 @@ user_router = APIRouter()
 #     return db_user
 
 
+@user_router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(get_current_active_user)):
+    """Get currently logged-in user profile"""
+    return current_user
+
+
 @user_router.get("/{id}", response_model = UserOut)
 def get_user(id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
 

@@ -110,3 +110,27 @@ class TeamMemberOut(BaseModel):
         from_attributes = True
 
 
+# board schemas
+class BoardBase(BaseModel):
+    name: str
+    description: str | None = None
+    team_id: int | None = None
+
+class BoardCreate(BoardBase):
+    pass
+
+class BoardUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+class BoardOut(BoardBase):
+    id: int
+    owner_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+

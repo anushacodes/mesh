@@ -15,6 +15,7 @@ class User(Base):
 
     tasks = relationship("Task", back_populates="owner")
     teams = relationship("Team", back_populates="owner", cascade="all, delete-orphan")
+    boards = relationship("Board", back_populates="owner", cascade="all, delete-orphan")
 
 
 class Task(Base):
@@ -45,6 +46,7 @@ class Team(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
     owner = relationship("User", back_populates="teams")
+    boards = relationship("Board", back_populates="team", cascade="all, delete-orphan")
 
 
 class TeamMember(Base):
@@ -54,6 +56,22 @@ class TeamMember(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     role = Column(String(20), default="member")  # 'owner', 'member'
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Board(Base):
+    __tablename__ = "boards"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    description = Column(String(500), nullable=True)
+    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="SET NULL"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+
+    owner = relationship("User", back_populates="boards")
+    team = relationship("Team", back_populates="boards")
 
 
 def create_tables():
