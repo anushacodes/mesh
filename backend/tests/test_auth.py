@@ -32,7 +32,7 @@ def test_register_duplicate_email(client):
 
 
 def test_login_success(client):
-    """Test successful login returns access token"""
+    """Test successful login returns access token and refresh token"""
     # 1. Register
     client.post("/app/auth/register", json={
         "name": "Login User",
@@ -40,7 +40,7 @@ def test_login_success(client):
         "password": "mypassword"
     })
 
-    # 2. Login (using JSON payload with email/password)
+    # 2. Login
     payload = {
         "email": "login@example.com",
         "password": "mypassword"
@@ -50,6 +50,7 @@ def test_login_success(client):
     
     data = response.json()
     assert "access_token" in data
+    assert "refresh_token" in data
     assert data["token_type"] == "bearer"
 
 
@@ -93,3 +94,53 @@ def test_get_current_user_me(client):
     data = response.json()
     assert data["name"] == "Jane Doe"
     assert data["email"] == "jane@example.com"
+
+
+def test_refresh_token_rotation(client):
+    """Test rotating the refresh token to get a new set of credentials"""
+    # 1. Register & Login
+    client.post("/app/auth/register", json={
+        "name": "Refresh User",
+        "email": "refresh@example.com",
+        "password": "password123"
+    })
+    login_res = client.post("/app/auth/login", json={
+        "email": "refresh@example.com",
+        "password": "password123"
+    })
+    data = login_res.json()
+    initial_access = data["access_token"]
+    initial_refresh = data["refresh_token"]
+
+    # 2. Call refresh -> rotates the refresh token
+    refresh_res = client.post("/app/auth/refresh", json={"refresh_token": initial_refresh})
+    assert refresh_res.status_code == 200
+    
+    new_data = refresh_res.json()
+    assert "access_token" in new_data
+    assert "refresh_token" in new_data
+    
+    rotated_access = new_data["access_token"]
+    rotated_refresh = new_data["refresh_token"]
+
+    assert rotated_access != initial_access
+    assert rotated_refresh != initial_refresh
+
+    # 3. Old refresh token should now be invalid -> Should return 401
+    expired_res = client.post("/app/auth/refresh", json={"refresh_token": initial_refresh})
+    assert expired_res.status_code == 401
+
+    # 4. Check active sessions listing via rotated access token
+    headers = {"Authorization": f"Bearer {rotated_access}"}
+    sessions_res = client.get("/app/auth/sessions", headers=headers)
+    assert sessions_res.status_code == 200
+    assert len(sessions_res.json()) == 1
+
+    # 5. Logout using current refresh token
+    logout_res = client.post("/app/auth/logout", json={"refresh_token": rotated_refresh})
+    assert logout_res.status_code == 204
+
+    # 6. Active sessions should now be empty
+    sessions_res2 = client.get("/app/auth/sessions", headers=headers)
+    assert len(sessions_res2.json()) == 0
+

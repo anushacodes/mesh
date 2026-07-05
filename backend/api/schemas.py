@@ -22,10 +22,21 @@ class UserLogin(BaseModel):
 
 class UserToken(BaseModel):
     access_token: str
-    token_type: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 class TokenData(BaseModel):
     email: str | None = None
+
+class UserSessionOut(BaseModel):
+    id: int
+    device_info: str | None = None
+    ip_address: str | None = None
+    created_at: datetime
+    expires_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 # user responses

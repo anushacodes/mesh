@@ -14,12 +14,25 @@ from .database.schema import User
 auth_router = APIRouter()
 
 
+import hashlib
+import secrets
+
 SECRET_KEY = "d203ed9aace9b7c13c47d46254a2222f285bad6973762db56d6560188fac3f58" # openssl rand -hex 32
 algorithm = "HS256"
 # access_token_expire_minutes = 60
 
 pwd_context = CryptContext(schemes = ["bcrypt"], deprecated = "auto")
 oauth2scheme = OAuth2PasswordBearer(tokenUrl = "/app/auth/login")
+
+
+def hash_token(token: str) -> str:
+    """Return the SHA-256 hex digest of a string token (prevents raw token leaks)."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def generate_refresh_token() -> str:
+    """Generate a cryptographically secure, URL-safe random string for refresh tokens."""
+    return secrets.token_urlsafe(32)
 
 
 
