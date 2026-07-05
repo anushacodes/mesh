@@ -8,4 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
-todo.md
+uv.lock
+notes/
+user.db
