@@ -48,27 +48,41 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 
-# [login] user logs in -> Create JWT -> returns token
-def create_access_token(data: dict) -> str:
-    return jwt.encode(data, 
-                      SECRET_KEY, 
-                      algorithm = algorithm)
+from datetime import datetime, timedelta
+import uuid
 
+# [login] user logs in -> Create JWT -> returns token
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)  # 15 minutes access token lifetime
+    
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "jti": str(uuid.uuid4())
+    })
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=algorithm)
 
 
 # [login] receive and decode JWT -> returns user ID 
 # (only checks if the token is valid)
 def decode_access_token(token: str):
     try:
-        token_data = jwt.decode(token, 
-                             SECRET_KEY, 
-                             algorithms = [algorithm])
+        token_data = jwt.decode(token, SECRET_KEY, algorithms=[algorithm])
         return token_data
-    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail="Token has expired"
+        )
     except JWTError:
         raise HTTPException(
-            status_code = 401,
-            detail = "invalid token")
+            status_code=401,
+            detail="invalid token"
+        )
     
 
 

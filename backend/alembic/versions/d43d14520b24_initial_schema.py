@@ -1,8 +1,8 @@
 """initial_schema
 
-Revision ID: 90ccc30f99db
+Revision ID: d43d14520b24
 Revises: 
-Create Date: 2026-07-05 15:04:52.457066
+Create Date: 2026-07-05 16:26:27.638040
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '90ccc30f99db'
+revision: str = 'd43d14520b24'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -42,6 +42,19 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('user_sessions',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('token_hash', sa.String(length=64), nullable=False),
+    sa.Column('device_info', sa.String(length=256), nullable=True),
+    sa.Column('ip_address', sa.String(length=50), nullable=True),
+    sa.Column('is_revoked', sa.Boolean(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=True),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_user_sessions_token_hash'), 'user_sessions', ['token_hash'], unique=True)
     op.create_table('boards',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
@@ -89,6 +102,8 @@ def downgrade() -> None:
     op.drop_table('tasks')
     op.drop_table('team_members')
     op.drop_table('boards')
+    op.drop_index(op.f('ix_user_sessions_token_hash'), table_name='user_sessions')
+    op.drop_table('user_sessions')
     op.drop_table('teams')
     op.drop_index(op.f('ix_users_name'), table_name='users')
     op.drop_index(op.f('ix_users_email'), table_name='users')

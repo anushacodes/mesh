@@ -50,6 +50,12 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
             detail="invalid credentials"
         )
 
+    # Purge expired sessions for this user to prevent table bloat
+    db.query(UserSession).filter(
+        UserSession.user_id == db_user.id,
+        UserSession.expires_at < datetime.utcnow()
+    ).delete(synchronize_session=False)
+
     # 1. Generate access and refresh tokens
     access_token = create_access_token({"sub": str(db_user.id)})
     raw_refresh_token = generate_refresh_token()
