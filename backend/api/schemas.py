@@ -52,9 +52,10 @@ class TaskBase(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     tags: str | None = None  # comma-separated
+    assignee_id: int | None = None
 
 class TaskCreate(TaskBase):
-    pass
+    board_id: int
 
 class TaskUpdate(BaseModel):
     title: str | None = None
@@ -64,13 +65,17 @@ class TaskUpdate(BaseModel):
     start_date: str | None = None
     end_date: str | None = None
     tags: str | None = None
+    assignee_id: int | None = None
+    board_id: int | None = None
 
 class TaskOut(TaskBase):
     id: int
     owner_id: int
+    board_id: int
 
     class Config:
         from_attributes = True
+
 
 
 # team schemas

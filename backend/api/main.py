@@ -5,6 +5,7 @@ from .routes.user import user_router
 from .routes.auth import auth_router
 from .routes.task import task_router
 from .routes.team import team_router
+from .routes.board import board_router
 # from .database.schema import create_tables
 
 # from contextlib import asynccontextmanager
@@ -49,6 +50,10 @@ app.include_router(task_router,
 app.include_router(team_router,
                    prefix="/app/teams",
                    tags=["teams"])
+
+app.include_router(board_router,
+                   prefix="/app/boards",
+                   tags=["boards"])
 
 
 

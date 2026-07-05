@@ -1,13 +1,33 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.venv/
+.pytest_cache/
 
-# Virtual environments
-.venv
-uv.lock
+# Databases
+*.db
+*.sqlite3
+
+# Node/Frontend
+node_modules/
+.next/
+dist-ssr/
+*.local
+.eslintcache
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
 notes/
-user.db
+uv.lock

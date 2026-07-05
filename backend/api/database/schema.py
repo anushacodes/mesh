@@ -13,7 +13,8 @@ class User(Base):
     hashed_password = Column(String(100))
     is_active = Column(Boolean, default=True) 
 
-    tasks = relationship("Task", back_populates="owner")
+    tasks = relationship("Task", back_populates="owner", foreign_keys="[Task.owner_id]")
+    assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="[Task.assignee_id]")
     teams = relationship("Team", back_populates="owner", cascade="all, delete-orphan")
     boards = relationship("Board", back_populates="owner", cascade="all, delete-orphan")
 
@@ -29,9 +30,14 @@ class Task(Base):
     start_date = Column(String(50), nullable=True)
     end_date = Column(String(50), nullable=True)
     tags = Column(String(200), nullable=True)  # comma-separated
+    
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assignee_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    board_id = Column(Integer, ForeignKey("boards.id", ondelete="CASCADE"), nullable=False)
 
-    owner = relationship("User", back_populates="tasks")
+    owner = relationship("User", back_populates="tasks", foreign_keys=[owner_id])
+    assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assignee_id])
+    board = relationship("Board", back_populates="tasks")
 
 
 class Team(Base):
@@ -72,6 +78,7 @@ class Board(Base):
 
     owner = relationship("User", back_populates="boards")
     team = relationship("Team", back_populates="boards")
+    tasks = relationship("Task", back_populates="board", cascade="all, delete-orphan")
 
 
 def create_tables():

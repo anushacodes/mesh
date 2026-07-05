@@ -18,12 +18,15 @@ def create_board(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # TODO: Fill in the logic.
-    # 1. If board.team_id is provided, check if the user is a team member:
-    #    (You can call verify_team_member manually here, or inject it)
-    # 2. Create the Board record with owner_id = current_user.id
-    # 3. Add to DB, commit, and return it.
-    pass
+    # Verify team membership if a team_id is provided
+    if board.team_id is not None:
+        verify_team_member(board.team_id, db, current_user)
+        
+    db_board = Board(**board.model_dump(), owner_id=current_user.id)
+    db.add(db_board)
+    db.commit()
+    db.refresh(db_board)
+    return db_board
 
 
 # [read] list all boards the current user has access to
@@ -32,14 +35,21 @@ def get_boards(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    # TODO: Fill in the logic.
-    # We want to retrieve:
-    # 1. All personal boards owned by the user (Board.team_id == None and Board.owner_id == current_user.id)
-    # OR
-    # 2. All team boards for teams where the user is a member or owner.
-    #    - Hint: Find all team_ids where user is in team_members or owns the team,
-    #      then query Board.team_id.in_(team_ids)
-    pass
+    # Get all teams the user belongs to (as member)
+    member_team_ids = db.query(TeamMember.team_id).filter(TeamMember.user_id == current_user.id).all()
+    team_ids = [t[0] for t in member_team_ids]
+    
+    # Get all teams the user owns
+    owned_team_ids = db.query(Team.id).filter(Team.owner_id == current_user.id).all()
+    team_ids.extend([t[0] for t in owned_team_ids])
+
+    # Retrieve personal boards owned by the user OR team boards within user's teams
+    boards = db.query(Board).filter(
+        ((Board.team_id == None) & (Board.owner_id == current_user.id)) |
+        (Board.team_id.in_(team_ids))
+    ).all()
+    
+    return boards
 
 
 # [read] get details of a specific board
@@ -47,13 +57,11 @@ def get_boards(
 def get_board(
     board_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-    # TODO: Inject the board access verification dependency:
-    # board: Board = Depends(verify_board_access)
+    current_user: User = Depends(get_current_active_user),
+    board: Board = Depends(verify_board_access)
 ):
-    # TODO: Since verify_board_access runs automatically before this route executes,
-    # you can simply return the injected board object here!
-    pass
+    # verify_board_access handles access checking automatically
+    return board
 
 
 # [update] modify a board's details
@@ -62,13 +70,28 @@ def update_board(
     board_id: int,
     board_data: BoardUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    board: Board = Depends(verify_board_access)
 ):
-    # TODO: Fill in the logic.
-    # 1. Retrieve board (or use verify_board_access)
-    # 2. Ensure only the board owner or the team owner (if it's a team board) can edit.
-    # 3. Update fields and return the updated board.
-    pass
+    # Only board owner or team owner can update
+    is_board_owner = board.owner_id == current_user.id
+    is_team_owner = False
+    if board.team_id is not None:
+        team = db.query(Team).filter(Team.id == board.team_id).first()
+        is_team_owner = team and (team.owner_id == current_user.id)
+
+    if not is_board_owner and not is_team_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="not authorized to modify this board"
+        )
+        
+    for key, value in board_data.model_dump(exclude_unset=True).items():
+        setattr(board, key, value)
+        
+    db.commit()
+    db.refresh(board)
+    return board
 
 
 # [delete] remove a board
@@ -76,10 +99,21 @@ def update_board(
 def delete_board(
     board_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    board: Board = Depends(verify_board_access)
 ):
-    # TODO: Fill in the logic.
-    # 1. Retrieve board
-    # 2. Verify only board owner or team owner can delete.
-    # 3. Delete and commit.
-    pass
+    # Only board owner or team owner can delete
+    is_board_owner = board.owner_id == current_user.id
+    is_team_owner = False
+    if board.team_id is not None:
+        team = db.query(Team).filter(Team.id == board.team_id).first()
+        is_team_owner = team and (team.owner_id == current_user.id)
+
+    if not is_board_owner and not is_team_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="not authorized to delete this board"
+        )
+        
+    db.delete(board)
+    db.commit()

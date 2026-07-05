@@ -29,11 +29,13 @@ def get_teams(db: Session = Depends(get_db),
 @team_router.get("/{team_id}", response_model=TeamOut)
 def get_team(team_id: int, db: Session = Depends(get_db), 
              current_user: User = Depends(get_current_active_user)):
+    
     """Retrieve details of a specific team (restricted to owner)."""
+
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    if db_team.owner_id != current_user.id:
+    if db_team.owner_id != getattr(current_user, "id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this team")
     return db_team
 
@@ -41,11 +43,13 @@ def get_team(team_id: int, db: Session = Depends(get_db),
 @team_router.patch("/{team_id}", response_model=TeamOut)
 def update_team(team_id: int, team: TeamUpdate, db: Session = Depends(get_db), 
                 current_user: User = Depends(get_current_active_user)):
+    
     """Update team details (restricted to owner)."""
+
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    if db_team.owner_id != current_user.id:
+    if db_team.owner_id != getattr(current_user, "id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to modify this team")
     
     for key, value in team.model_dump(exclude_unset=True).items():
@@ -59,11 +63,13 @@ def update_team(team_id: int, team: TeamUpdate, db: Session = Depends(get_db),
 @team_router.delete("/{team_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_team(team_id: int, db: Session = Depends(get_db), 
                 current_user: User = Depends(get_current_active_user)):
+    
     """Delete a team (restricted to owner)."""
+
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    if db_team.owner_id != current_user.id:
+    if db_team.owner_id != getattr(current_user, "id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this team")
     
     db.delete(db_team)
@@ -73,12 +79,14 @@ def delete_team(team_id: int, db: Session = Depends(get_db),
 @team_router.post("/{team_id}/members", response_model=TeamMemberOut, status_code=status.HTTP_201_CREATED)
 def add_team_member(team_id: int, member: TeamMemberAdd, db: Session = Depends(get_db), 
                     current_user: User = Depends(get_current_active_user)):
+    
     """Add a user to a team by looking up their email."""
+    
     # Ensure team exists and user owns it
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    if db_team.owner_id != current_user.id:
+    if db_team.owner_id != getattr(current_user, "id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to manage this team")
 
     # Find the target user to add
@@ -112,11 +120,13 @@ def add_team_member(team_id: int, member: TeamMemberAdd, db: Session = Depends(g
 @team_router.get("/{team_id}/members", response_model=list[TeamMemberOut])
 def get_team_members(team_id: int, db: Session = Depends(get_db), 
                      current_user: User = Depends(get_current_active_user)):
+    
     """List all members of a specific team (restricted to owner)."""
+    
     db_team = db.query(Team).filter(Team.id == team_id).first()
     if not db_team:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team not found")
-    if db_team.owner_id != current_user.id:
+    if db_team.owner_id != getattr(current_user, "id"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to manage this team")
 
     # Fetch team members joined with user information
