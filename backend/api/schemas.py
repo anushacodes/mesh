@@ -1,13 +1,6 @@
 
 """
 Pydantic defines structure of expected input/output.
-
-UserRegister: what the client sends when creating an account.
-UserLogin: what the client sends when logging in.
-UserUpdate: what the client can modify.
-UserOut: what you're willing to send back.
-UserToken: the login response.
-TokenData: an internal helper used after decoding a JWT.
 """
 
 from datetime import datetime
@@ -18,9 +11,7 @@ class UserBase(BaseModel):
     name: str
     email: EmailStr
 
-
 # authentication
-
 class UserRegister(UserBase):
     password: str
 
