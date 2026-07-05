@@ -46,6 +46,15 @@ class Team(Base):
 
     owner = relationship("User", back_populates="teams")
 
-    
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    team_id = Column(Integer, ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    role = Column(String(20), default="member")  # 'owner', 'member'
+    joined_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 def create_tables():
     Base.metadata.create_all(bind=engine)   

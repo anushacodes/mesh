@@ -94,3 +94,19 @@ class TeamOut(TeamBase):
     class Config:
         from_attributes = True
 
+
+# team member schemas
+class TeamMemberAdd(BaseModel):
+    email: EmailStr
+
+class TeamMemberOut(BaseModel):
+    user_id: int
+    name: str
+    email: EmailStr
+    role: str
+    joined_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
