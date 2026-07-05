@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { loginUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,17 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  useEffect(() => {
+    // Check if the user was just redirected from registration
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("registered") === "true") {
+      setShowSuccess(true);
+      // Clean up the URL query parameter silently so it doesn't stay on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -23,7 +34,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="flex flex-col min-h-screen items-center justify-center gap-4">
+      {/* Registration success message rendered OUTSIDE the box */}
+      {showSuccess && (
+        <div className="w-full max-w-sm p-3.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-medium shadow-sm">
+          Registration successful! You can now log in below.
+        </div>
+      )}
+
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>Login</CardTitle>
@@ -41,7 +59,7 @@ export default function LoginPage() {
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button type="submit">Login</Button>
             <p className="text-sm text-center">
-              No account? <a href="/register" className="underline">Register</a>
+              No account? <a href="/register" className="underline font-semibold">Register</a>
             </p>
           </form>
         </CardContent>
@@ -49,3 +67,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

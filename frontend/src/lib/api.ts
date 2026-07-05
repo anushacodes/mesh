@@ -41,13 +41,13 @@ export async function getCurrentUser() {
 }
 
 
-export async function getTasks() {
-  const res = await fetch(`${BASE_URL}/app/tasks/`, { headers: authHeaders() });
+export async function getTasks(boardId: number) {
+  const res = await fetch(`${BASE_URL}/app/tasks/?board_id=${boardId}`, { headers: authHeaders() });
   if (!res.ok) throw new Error("Failed to fetch tasks");
   return res.json();
 }
 
-export async function createTask(data: { title: string; description?: string; status?: string; priority?: string }) {
+export async function createTask(data: { title: string; board_id: number; description?: string; status?: string; priority?: string }) {
   const res = await fetch(`${BASE_URL}/app/tasks/`, {
     method: "POST",
     headers: authHeaders(),
@@ -124,4 +124,33 @@ export async function addTeamMember(teamId: number, email: string) {
   }
   return res.json();
 }
+
+// Boards APIs
+export async function getBoards() {
+  const res = await fetch(`${BASE_URL}/app/boards/`, { headers: authHeaders() });
+  if (!res.ok) throw new Error("Failed to fetch boards");
+  return res.json();
+}
+
+export async function createBoard(data: { name: string; description?: string; team_id?: number }) {
+  const res = await fetch(`${BASE_URL}/app/boards/`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.detail || "Failed to create board");
+  }
+  return res.json();
+}
+
+export async function deleteBoard(boardId: number) {
+  const res = await fetch(`${BASE_URL}/app/boards/${boardId}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw new Error("Failed to delete board");
+}
+
 

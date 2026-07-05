@@ -16,7 +16,8 @@ export default function RegisterPage() {
     setError("");
     try {
       await registerUser(name, email, password);
-      alert("Registered! Go to login.");
+      // Redirect to login page with query param to persist success message
+      window.location.href = "/?registered=true";
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     }
@@ -45,7 +46,7 @@ export default function RegisterPage() {
             {error && <p className="text-sm text-red-500">{error}</p>}
             <Button type="submit">Register</Button>
             <p className="text-sm text-center">
-              Have an account? <a href="/" className="underline">Login</a>
+              Have an account? <a href="/" className="underline font-semibold">Login</a>
             </p>
           </form>
         </CardContent>
