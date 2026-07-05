@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getTasks, createTask, deleteTask, updateTask } from "@/lib/api";
+import { getTasks, createTask, deleteTask, updateTask, getTeamMembers } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,7 @@ type Task = {
   priority: string;
   tags?: string;
   owner_id: number;
+  assignee_id?: number | null;
 };
 
 type UserProfile = {
@@ -33,6 +34,13 @@ type Board = {
   name: string;
   description?: string;
   team_id?: number;
+};
+
+type TeamMember = {
+  user_id: number;
+  name: string;
+  email: string;
+  role: string;
 };
 
 type BoardPageProps = {
@@ -58,22 +66,56 @@ const PRIORITY_COLORS: Record<string, "default" | "secondary" | "destructive"> =
 
 export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTaskOpen }: BoardPageProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Create Task states
   const [formError, setFormError] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("medium");
   const [tagsInput, setTagsInput] = useState("");
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [assigneeId, setAssigneeId] = useState("unassigned");
 
-  function fetchTasks() {
+  // Edit Task states
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editStatus, setEditStatus] = useState("");
+  const [editPriority, setEditPriority] = useState("");
+  const [editTags, setEditTags] = useState("");
+  const [editAssigneeId, setEditAssigneeId] = useState<string>("unassigned");
+  const [editError, setEditError] = useState("");
+
+  // Fetch tasks
+  useEffect(() => {
     getTasks(board.id)
       .then(setTasks)
       .catch(() => {});
-  }
-
-  useEffect(() => {
-    fetchTasks();
   }, [refreshTrigger, board.id]);
+
+  // Fetch team members if it's a team board
+  useEffect(() => {
+    if (board.team_id) {
+      getTeamMembers(board.team_id)
+        .then(setTeamMembers)
+        .catch(() => {});
+    } else {
+      setTeamMembers([]);
+    }
+  }, [board.team_id]);
+
+  // Setup edit form fields when a task is clicked
+  const handleOpenEdit = (task: Task) => {
+    setEditingTask(task);
+    setEditTitle(task.title);
+    setEditDesc(task.description || "");
+    setEditStatus(task.status);
+    setEditPriority(task.priority);
+    setEditTags(task.tags || "");
+    setEditAssigneeId(task.assignee_id ? task.assignee_id.toString() : "unassigned");
+    setEditError("");
+  };
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -86,12 +128,13 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
         status: "todo",
         priority,
         ...(tagsInput ? { tags: tagsInput } : {}),
+        assignee_id: assigneeId === "unassigned" ? null : parseInt(assigneeId)
       });
-      fetchTasks();
       setTitle("");
       setDescription("");
       setPriority("medium");
       setTagsInput("");
+      setAssigneeId("unassigned");
       setNewTaskOpen(false);
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: unknown) {
@@ -99,38 +142,45 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
     }
   }
 
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingTask) return;
+    setEditError("");
+    try {
+      const payload = {
+        title: editTitle,
+        description: editDesc,
+        status: editStatus,
+        priority: editPriority,
+        tags: editTags || null,
+        assignee_id: editAssigneeId === "unassigned" ? null : parseInt(editAssigneeId),
+      };
+      await updateTask(editingTask.id, payload);
+      setEditingTask(null);
+      setRefreshTrigger((prev) => prev + 1);
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : "Failed to update task");
+    }
+  }
+
   async function handleDelete(id: number) {
-    if (!confirm("Delete this task?")) return;
+    if (!confirm("Are you sure you want to delete this task?")) return;
     try {
       await deleteTask(id);
       setTasks((prev) => prev.filter((t) => t.id !== id));
+      setEditingTask(null);
     } catch {
       alert("Failed to delete task");
     }
   }
 
-  async function handleMove(id: number, currentStatus: string) {
-    const statuses = ["todo", "in-progress", "done"];
-    const currentIndex = statuses.indexOf(currentStatus);
-    if (currentIndex === -1) return;
-    const nextStatus = statuses[(currentIndex + 1) % statuses.length];
-    try {
-      await updateTask(id, { status: nextStatus });
-      fetchTasks();
-    } catch {
-      alert("Failed to move task");
-    }
-  }
-
-  // Get correct user initials based on user name
-  function getUserInitials() {
-    if (!user || !user.name) return "ME";
-    const parts = user.name.trim().split(/\s+/);
+  // Get correct user initials based on full name string
+  function getInitials(name: string) {
+    const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
-  const userInitials = getUserInitials();
   const isTeamBoard = board.team_id !== null && board.team_id !== undefined;
 
   return (
@@ -150,7 +200,7 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
           )}
         </div>
         
-        {/* New Task Button aligned at same spot as create board */}
+        {/* New Task Button */}
         <Button onClick={() => setNewTaskOpen(true)}>+ New Task</Button>
       </div>
 
@@ -187,9 +237,121 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                 <option value="urgent">Urgent</option>
               </select>
             </div>
+
+            {/* Assignee selection inside Create Dialog (only on team boards) */}
+            {isTeamBoard && (
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="assignee">Assignee</Label>
+                <select
+                  id="assignee"
+                  value={assigneeId}
+                  onChange={(e) => setAssigneeId(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm bg-background"
+                >
+                  <option value="unassigned">-- Unassigned --</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.name} ({m.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {formError && <p className="text-sm text-red-500">{formError}</p>}
             <Button type="submit">Create Task</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={editingTask !== null} onOpenChange={(open) => !open && setEditingTask(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          {editingTask && (
+            <form onSubmit={handleUpdate} className="flex flex-col gap-4 mt-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="editTitle">Title</Label>
+                <Input id="editTitle" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} required />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="editDesc">Description</Label>
+                <Input id="editDesc" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="editTags">Tags (comma-separated)</Label>
+                <Input id="editTags" placeholder="frontend, bug" value={editTags} onChange={(e) => setEditTags(e.target.value)} />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="editStatus">Status</Label>
+                  <select
+                    id="editStatus"
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value)}
+                    className="border rounded-md px-3 py-2 text-sm bg-background"
+                  >
+                    {COLUMNS.map((col) => (
+                      <option key={col.key} value={col.key}>
+                        {col.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="editPriority">Priority</Label>
+                  <select
+                    id="editPriority"
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value)}
+                    className="border rounded-md px-3 py-2 text-sm bg-background"
+                  >
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Assignee selection: only visible on Team Boards */}
+              {isTeamBoard && (
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor="editAssignee">Assignee</Label>
+                  <select
+                    id="editAssignee"
+                    value={editAssigneeId}
+                    onChange={(e) => setEditAssigneeId(e.target.value)}
+                    className="border rounded-md px-3 py-2 text-sm bg-background"
+                  >
+                    <option value="unassigned">-- Unassigned --</option>
+                    {teamMembers.map((m) => (
+                      <option key={m.user_id} value={m.user_id}>
+                        {m.name} ({m.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {editError && <p className="text-sm text-red-500">{editError}</p>}
+              
+              <div className="flex items-center justify-between gap-4 mt-2">
+                <button
+                  type="button"
+                  onClick={() => handleDelete(editingTask.id)}
+                  className="text-xs text-destructive hover:underline font-semibold"
+                >
+                  Delete Task
+                </button>
+                <Button type="submit">Save Changes</Button>
+              </div>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -199,7 +361,7 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
           const colTasks = tasks.filter((t) => t.status === col.key);
           return (
             <div key={col.key} className="bg-muted/40 border rounded-xl p-4 flex flex-col min-h-[500px]">
-              {/* Column Title with count Badge */}
+              {/* Column Title */}
               <div className="flex items-center justify-between mb-4 pb-2 border-b">
                 <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
                   {col.label}
@@ -213,25 +375,26 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
               <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
                 {colTasks.map((task) => {
                   const tags = task.tags ? task.tags.split(",").map((t) => t.trim()) : [];
+                  
+                  // Look up assignee name for initials circle
+                  let assigneeName = "";
+                  if (task.assignee_id) {
+                    const matchedMember = teamMembers.find((m) => m.user_id === task.assignee_id);
+                    if (matchedMember) {
+                      assigneeName = matchedMember.name;
+                    }
+                  }
+
                   return (
                     <div
                       key={task.id}
-                      onClick={() => handleMove(task.id, task.status)}
-                      className="bg-card hover:bg-muted/20 border rounded-lg p-4 shadow-sm transition-all cursor-pointer relative group"
+                      onClick={() => handleOpenEdit(task)}
+                      className="bg-card hover:border-foreground/30 border rounded-lg p-4 shadow-sm transition-all cursor-pointer relative group"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <h3 className="text-sm font-semibold text-card-foreground leading-tight">
                           {task.title}
                         </h3>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(task.id);
-                          }}
-                          className="text-muted-foreground hover:text-destructive text-xs transition-colors shrink-0"
-                        >
-                          ✕
-                        </button>
                       </div>
 
                       {task.description && (
@@ -254,18 +417,32 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                         </div>
                       )}
 
-                      {/* Card Footer: Metadata and Assigned Circle Avatar */}
+                      {/* Card Footer */}
                       <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-muted/50">
                         {/* Task Priority */}
                         <Badge variant={PRIORITY_COLORS[task.priority] ?? "default"} className="text-[9px] px-1.5 py-0">
                           {task.priority}
                         </Badge>
                         
-                        {/* Assignee/Owner Avatar (only rendered on team boards) */}
+                        {/* Assignee Avatar */}
                         {isTeamBoard && (
-                          <div className="h-6 w-6 rounded-full bg-primary/10 text-primary border flex items-center justify-center text-[10px] font-bold select-none" title={user?.name || "Assignee"}>
-                            {userInitials}
-                          </div>
+                          task.assignee_id && assigneeName ? (
+                            /* Assigned member */
+                            <div 
+                              className="h-6 w-6 rounded-full bg-primary/10 text-primary border flex items-center justify-center text-[10px] font-bold select-none" 
+                              title={`Assigned to: ${assigneeName}`}
+                            >
+                              {getInitials(assigneeName)}
+                            </div>
+                          ) : (
+                            /* Unassigned placeholder */
+                            <div 
+                              className="h-6 w-6 rounded-full bg-muted border border-dashed border-muted-foreground/30 text-muted-foreground/50 flex items-center justify-center text-xs font-bold select-none" 
+                              title="Unassigned"
+                            >
+                              +
+                            </div>
+                          )
                         )}
                       </div>
                     </div>

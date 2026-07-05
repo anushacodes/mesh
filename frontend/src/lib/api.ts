@@ -60,7 +60,7 @@ export async function createTask(data: { title: string; board_id: number; descri
   return res.json();
 }
 
-export async function updateTask(taskId: number, data: { status?: string; title?: string; description?: string; priority?: string }) {
+export async function updateTask(taskId: number, data: { status?: string; title?: string; description?: string; priority?: string; assignee_id?: number | null; tags?: string | null }) {
   const res = await fetch(`${BASE_URL}/app/tasks/${taskId}`, {
     method: "PATCH",
     headers: authHeaders(),

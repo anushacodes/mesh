@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getBoards, createBoard, deleteBoard, createTeam, addTeamMember } from "@/lib/api";
+import { getBoards, createBoard, deleteBoard, createTeam, addTeamMember, getTeamMembers } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import {
 type Team = {
   id: number;
   name: string;
+  description?: string;
 };
 
 type Board = {
@@ -22,6 +23,13 @@ type Board = {
   name: string;
   description?: string;
   team_id?: number;
+};
+
+type TeamMember = {
+  user_id: number;
+  name: string;
+  email: string;
+  role: string;
 };
 
 type DashboardProps = {
@@ -33,24 +41,27 @@ type DashboardProps = {
 
 export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }: DashboardProps) {
   const [boards, setBoards] = useState<Board[]>([]);
+  const [teamMembersMap, setTeamMembersMap] = useState<Record<number, TeamMember[]>>({});
   
   // Dialog visibility states
   const [boardOpen, setBoardOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
+  const [quickInviteOpen, setQuickInviteOpen] = useState(false);
 
-  // Create Board form state
+  // Scoped creation states
+  const [selectedTeamForBoard, setSelectedTeamForBoard] = useState<Team | null>(null);
+  const [selectedTeamForInvite, setSelectedTeamForInvite] = useState<Team | null>(null);
+
+  // Form states
   const [boardName, setBoardName] = useState("");
   const [boardDesc, setBoardDesc] = useState("");
-  const [targetTeamId, setTargetTeamId] = useState<string>("");
   const [boardError, setBoardError] = useState("");
 
-  // Create Team form states
   const [teamName, setTeamName] = useState("");
   const [teamDesc, setTeamDesc] = useState("");
-  const [createdTeamId, setCreatedTeamId] = useState<number | null>(null);
   const [teamError, setTeamError] = useState("");
 
-  // Invite member states (Step 2 of Team Creation)
+  // Invite states
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
@@ -59,12 +70,18 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
     fetchBoards();
   }, []);
 
-  // Pre-select first team as default when board creation dialog opens
+  // Fetch team members for all teams when teams array changes
   useEffect(() => {
-    if (teams.length > 0 && !targetTeamId) {
-      setTargetTeamId(teams[0].id.toString());
+    if (scope === "work" && teams.length > 0) {
+      teams.forEach((team) => {
+        getTeamMembers(team.id)
+          .then((members) => {
+            setTeamMembersMap((prev) => ({ ...prev, [team.id]: members }));
+          })
+          .catch(() => {});
+      });
     }
-  }, [teams, boardOpen]);
+  }, [teams, scope]);
 
   async function fetchBoards() {
     try {
@@ -85,11 +102,12 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
   async function handleCreateBoard(e: React.FormEvent) {
     e.preventDefault();
     setBoardError("");
+    const targetTeamId = scope === "work" ? selectedTeamForBoard?.id : undefined;
     try {
       const payload = {
         name: boardName,
         description: boardDesc,
-        team_id: scope === "work" && targetTeamId ? parseInt(targetTeamId) : undefined,
+        team_id: targetTeamId,
       };
       const newBoard = await createBoard(payload);
       setBoards((prev) => [...prev, newBoard]);
@@ -106,24 +124,32 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
     setTeamError("");
     try {
       const newTeam = await createTeam({ name: teamName, description: teamDesc });
-      setCreatedTeamId(newTeam.id);
       setTeamName("");
       setTeamDesc("");
+      setTeamOpen(false);
       refreshTeams(); // Update App.tsx teams state
+      
+      // Auto-open quick invite for the newly created team!
+      setSelectedTeamForInvite(newTeam);
+      setQuickInviteOpen(true);
     } catch (err: unknown) {
       setTeamError(err instanceof Error ? err.message : "Failed to create team");
     }
   }
 
-  async function handleInviteMember(e: React.FormEvent) {
+  async function handleQuickInvite(e: React.FormEvent) {
     e.preventDefault();
-    if (!createdTeamId) return;
+    if (!selectedTeamForInvite) return;
     setInviteError("");
     setInviteSuccess("");
     try {
-      await addTeamMember(createdTeamId, inviteEmail);
+      await addTeamMember(selectedTeamForInvite.id, inviteEmail);
       setInviteSuccess(`Successfully invited ${inviteEmail}!`);
       setInviteEmail("");
+      
+      // Refresh member list for this team
+      const updatedMembers = await getTeamMembers(selectedTeamForInvite.id);
+      setTeamMembersMap((prev) => ({ ...prev, [selectedTeamForInvite.id]: updatedMembers }));
     } catch (err: unknown) {
       setInviteError(err instanceof Error ? err.message : "Failed to add member");
     }
@@ -140,8 +166,14 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
     }
   }
 
+  // Get initials for overlapping avatar bubbles
+  function getInitials(name: string) {
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+
   const personalBoards = boards.filter((b) => b.team_id === null || b.team_id === undefined);
-  const teamBoards = boards.filter((b) => b.team_id !== null && b.team_id !== undefined);
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -154,112 +186,51 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
         <div className="flex gap-3">
           {/* Work Space: Create Team Button */}
           {scope === "work" && (
-            <Dialog open={teamOpen} onOpenChange={(open) => {
-              setTeamOpen(open);
-              if (!open) {
-                // Reset states when closing
-                setCreatedTeamId(null);
-                setInviteEmail("");
-                setInviteError("");
-                setInviteSuccess("");
-              }
-            }}>
+            <Dialog open={teamOpen} onOpenChange={setTeamOpen}>
               <DialogTrigger asChild>
                 <Button variant="outline">+ Create Team</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>
-                    {createdTeamId ? "Invite Members" : "Create New Team"}
-                  </DialogTitle>
+                  <DialogTitle>Create New Team</DialogTitle>
                 </DialogHeader>
-
-                {!createdTeamId ? (
-                  /* Step 1: Create Team */
-                  <form onSubmit={handleCreateTeam} className="flex flex-col gap-4 mt-2">
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="teamName">Team Name</Label>
-                      <Input
-                        id="teamName"
-                        value={teamName}
-                        onChange={(e) => setTeamName(e.target.value)}
-                        placeholder="e.g. Design Team"
-                        required
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="teamDesc">Description</Label>
-                      <Input
-                        id="teamDesc"
-                        value={teamDesc}
-                        onChange={(e) => setTeamDesc(e.target.value)}
-                        placeholder="Project workspace descriptions"
-                      />
-                    </div>
-                    {teamError && <p className="text-sm text-red-500">{teamError}</p>}
-                    <Button type="submit">Create Team</Button>
-                  </form>
-                ) : (
-                  /* Step 2: Invite Members */
-                  <div className="flex flex-col gap-4 mt-2">
-                    <p className="text-xs text-muted-foreground">
-                      Your team has been created successfully! Invite your teammates now.
-                    </p>
-                    <form onSubmit={handleInviteMember} className="flex flex-col gap-3">
-                      <Label htmlFor="inviteEmail">Member Email</Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="inviteEmail"
-                          type="email"
-                          placeholder="coworker@example.com"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
-                          required
-                        />
-                        <Button type="submit">Invite</Button>
-                      </div>
-                    </form>
-                    {inviteError && <p className="text-xs text-red-500">{inviteError}</p>}
-                    {inviteSuccess && <p className="text-xs text-green-500 font-semibold">{inviteSuccess}</p>}
-                    
-                    <Button 
-                      variant="secondary" 
-                      onClick={() => setTeamOpen(false)}
-                      className="mt-2"
-                    >
-                      Finish
-                    </Button>
+                <form onSubmit={handleCreateTeam} className="flex flex-col gap-4 mt-2">
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="teamName">Team Name</Label>
+                    <Input
+                      id="teamName"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder="e.g. Design Team"
+                      required
+                    />
                   </div>
-                )}
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="teamDesc">Description</Label>
+                    <Input
+                      id="teamDesc"
+                      value={teamDesc}
+                      onChange={(e) => setTeamDesc(e.target.value)}
+                      placeholder="e.g. Mobile and desktop designers"
+                    />
+                  </div>
+                  {teamError && <p className="text-sm text-red-500">{teamError}</p>}
+                  <Button type="submit">Create Team</Button>
+                </form>
               </DialogContent>
             </Dialog>
           )}
 
-          {/* Create Board Button */}
-          <Dialog open={boardOpen} onOpenChange={setBoardOpen}>
-            <DialogTrigger asChild>
-              <Button>+ Create Board</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Board</DialogTitle>
-              </DialogHeader>
-
-              {scope === "work" && teams.length === 0 ? (
-                /* Work scope warning: no teams exist */
-                <div className="flex flex-col items-center text-center gap-4 py-2">
-                  <p className="text-xs text-muted-foreground">
-                    You must belong to at least one team before you can create a team board.
-                  </p>
-                  <Button onClick={() => {
-                    setBoardOpen(false);
-                    setTeamOpen(true);
-                  }}>
-                    Create a Team First
-                  </Button>
-                </div>
-              ) : (
-                /* Normal Board Creation Form */
+          {/* Create Board Button (only on Personal page since Work page creates boards inside specific teams) */}
+          {scope === "personal" && (
+            <Dialog open={boardOpen} onOpenChange={setBoardOpen}>
+              <DialogTrigger asChild>
+                <Button>+ Create Board</Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Personal Board</DialogTitle>
+                </DialogHeader>
                 <form onSubmit={handleCreateBoard} className="flex flex-col gap-4 mt-2">
                   <div className="flex flex-col gap-1">
                     <Label htmlFor="boardName">Board Name</Label>
@@ -278,37 +249,86 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
                       onChange={(e) => setBoardDesc(e.target.value)}
                     />
                   </div>
-
-                  {scope === "work" && (
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="teamSelect">Assign to Team</Label>
-                      <select
-                        id="teamSelect"
-                        value={targetTeamId}
-                        onChange={(e) => setTargetTeamId(e.target.value)}
-                        required
-                        className="border rounded-md px-3 py-2 text-sm bg-background"
-                      >
-                        {teams.map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
                   {boardError && <p className="text-sm text-red-500">{boardError}</p>}
                   <Button type="submit">Create Board</Button>
                 </form>
-              )}
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
+      {/* Quick Invite Dialog (Shared popup for inline invites) */}
+      <Dialog open={quickInviteOpen} onOpenChange={(open) => {
+        setQuickInviteOpen(open);
+        if (!open) {
+          setInviteEmail("");
+          setInviteError("");
+          setInviteSuccess("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite to {selectedTeamForInvite?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4 mt-2">
+            <form onSubmit={handleQuickInvite} className="flex flex-col gap-3">
+              <Label htmlFor="quickInviteEmail">Teammate's Email Address</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="quickInviteEmail"
+                  type="email"
+                  placeholder="coworker@example.com"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  required
+                />
+                <Button type="submit">Send Invite</Button>
+              </div>
+            </form>
+            {inviteError && <p className="text-xs text-red-500">{inviteError}</p>}
+            {inviteSuccess && <p className="text-xs text-green-500 font-semibold">{inviteSuccess}</p>}
+            <Button variant="secondary" onClick={() => setQuickInviteOpen(false)} className="mt-2">
+              Done
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Board Form for Scoped Team Board Creation */}
+      <Dialog open={boardOpen} onOpenChange={setBoardOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Board for {selectedTeamForBoard?.name}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateBoard} className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="boardName">Board Name</Label>
+              <Input
+                id="boardName"
+                value={boardName}
+                onChange={(e) => setBoardName(e.target.value)}
+                placeholder="e.g. Q3 Roadmap"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="boardDesc">Description</Label>
+              <Input
+                id="boardDesc"
+                value={boardDesc}
+                onChange={(e) => setBoardDesc(e.target.value)}
+                placeholder="Scope of work details"
+              />
+            </div>
+            {boardError && <p className="text-sm text-red-500">{boardError}</p>}
+            <Button type="submit">Create Board</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Boards Grids */}
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-10">
         {/* Personal Boards (only visible on "personal" tab) */}
         {scope === "personal" && (
           <div>
@@ -339,44 +359,99 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
           </div>
         )}
 
-        {/* Team Boards (only visible on "work" tab) */}
+        {/* Team Boards grouped by Team (only visible on "work" tab) */}
         {scope === "work" && (
-          <div>
-            {teamBoards.length === 0 ? (
-              <p className="text-sm text-muted-foreground">You don't have any team boards yet.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                {teamBoards.map((board) => {
-                  const teamName = teams.find((t) => t.id === board.team_id)?.name || "Unknown Team";
-                  return (
-                    <Card
-                      key={board.id}
-                      onClick={() => onSelectBoard(board)}
-                      className="cursor-pointer hover:border-foreground/40 transition-all shadow-sm"
-                    >
-                      <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <div className="flex flex-col">
-                          <CardTitle className="text-base font-semibold">{board.name}</CardTitle>
-                          <span className="text-[9px] text-muted-foreground font-mono bg-muted w-max px-1 rounded mt-0.5">
-                            {teamName}
-                          </span>
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteBoard(board.id, e)}
-                          className="text-muted-foreground hover:text-destructive text-xs transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {board.description || "No description."}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+          <div className="flex flex-col gap-10">
+            {teams.length === 0 ? (
+              <div className="h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-center p-6 bg-muted/20">
+                <p className="text-sm text-muted-foreground mb-4">
+                  You don't have any teams yet. Create a team first to establish a workspace.
+                </p>
+                <Button onClick={() => setTeamOpen(true)}>Create Your First Team</Button>
               </div>
+            ) : (
+              teams.map((team) => {
+                const teamBoardsList = boards.filter((b) => b.team_id === team.id);
+                const members = teamMembersMap[team.id] || [];
+
+                return (
+                  <div key={team.id} className="border rounded-xl p-6 bg-card shadow-sm flex flex-col gap-6">
+                    {/* Team Workspace Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-muted">
+                      <div>
+                        <h2 className="text-lg font-bold">{team.name}</h2>
+                        {team.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{team.description}</p>
+                        )}
+                      </div>
+
+                      {/* Team Members and Invite Action */}
+                      <div className="flex items-center gap-3">
+                        {/* Overlapping member bubbles */}
+                        <div className="flex -space-x-2 overflow-hidden">
+                          {members.map((m) => (
+                            <div
+                              key={m.user_id}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-full border bg-background text-[9px] font-bold ring-2 ring-card select-none"
+                              title={`${m.name} (${m.email})`}
+                            >
+                              {getInitials(m.name)}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Quick Invite Button */}
+                        <button
+                          onClick={() => {
+                            setSelectedTeamForInvite(team);
+                            setQuickInviteOpen(true);
+                          }}
+                          className="text-xs bg-muted hover:bg-muted-foreground/15 border text-foreground font-medium px-2.5 py-1 rounded transition-colors"
+                        >
+                          + Invite
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Team Boards Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {teamBoardsList.map((board) => (
+                        <Card
+                          key={board.id}
+                          onClick={() => onSelectBoard(board)}
+                          className="cursor-pointer hover:border-foreground/40 transition-all shadow-sm bg-background/50"
+                        >
+                          <CardHeader className="flex flex-row items-center justify-between pb-2">
+                            <CardTitle className="text-base font-semibold">{board.name}</CardTitle>
+                            <button
+                              onClick={(e) => handleDeleteBoard(board.id, e)}
+                              className="text-muted-foreground hover:text-destructive text-xs transition-colors"
+                            >
+                              ✕
+                            </button>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {board.description || "No description."}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      ))}
+
+                      {/* Dashed Create Board trigger scoped directly to this team */}
+                      <div
+                        onClick={() => {
+                          setSelectedTeamForBoard(team);
+                          setBoardOpen(true);
+                        }}
+                        className="border-2 border-dashed rounded-xl hover:border-foreground/30 flex items-center justify-center cursor-pointer transition-all min-h-[110px] text-muted-foreground/60 hover:text-foreground/80 bg-background/20"
+                      >
+                        <span className="text-xs font-semibold">+ Create Board</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
