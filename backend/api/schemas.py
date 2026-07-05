@@ -5,6 +5,7 @@ Pydantic defines structure of expected input/output.
 
 from datetime import datetime
 from pydantic import BaseModel, EmailStr
+from .database.schema import SystemRole, TeamRole, TaskStatus, TaskPriority
 
 # shared user fields
 class UserBase(BaseModel):
@@ -30,6 +31,7 @@ class TokenData(BaseModel):
 # user responses
 class UserOut(UserBase):
     id: int
+    role: SystemRole
     is_active: bool
 
     class Config:
@@ -41,14 +43,15 @@ class UserUpdate(BaseModel):
     name: str | None = None
     email: EmailStr | None = None
     password: str | None = None
+    role: SystemRole | None = None
 
 
 # task schemas
 class TaskBase(BaseModel):
     title: str
     description: str | None = None
-    status: str | None = "todo"
-    priority: str | None = "medium"
+    status: TaskStatus | None = TaskStatus.TODO
+    priority: TaskPriority | None = TaskPriority.MEDIUM
     start_date: str | None = None
     end_date: str | None = None
     tags: str | None = None  # comma-separated
@@ -60,8 +63,8 @@ class TaskCreate(TaskBase):
 class TaskUpdate(BaseModel):
     title: str | None = None
     description: str | None = None
-    status: str | None = None
-    priority: str | None = None
+    status: TaskStatus | None = None
+    priority: TaskPriority | None = None
     start_date: str | None = None
     end_date: str | None = None
     tags: str | None = None
@@ -108,7 +111,7 @@ class TeamMemberOut(BaseModel):
     user_id: int
     name: str
     email: EmailStr
-    role: str
+    role: TeamRole
     joined_at: datetime
 
     class Config:
