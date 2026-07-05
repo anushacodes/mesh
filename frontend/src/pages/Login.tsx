@@ -16,7 +16,7 @@ export default function LoginPage() {
     try {
       const data = await loginUser(email, password);
       localStorage.setItem("token", data.access_token);
-      alert("Logged in! Token saved.");
+      window.location.href = "/dashboard";
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     }

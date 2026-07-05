@@ -13,15 +13,18 @@ user_router = APIRouter()
 
 # @user_router.post("/", response_model=UserOut, status_code = 201, include_in_schema=False)
 # def create_user(user: UserIn, db: Session = Depends(get_db)):
-
 #     """create user endpoint"""
-
 #     db_user = User(name=user.name, email=user.email, hashed_password=user.password, is_active=True)
 #     db.add(db_user)
 #     db.commit()
 #     db.refresh(db_user)
-
 #     return db_user
+
+
+@user_router.get("/me", response_model=UserOut)
+def get_me(current_user: User = Depends(get_current_active_user)):
+    """Get currently logged-in user profile"""
+    return current_user
 
 
 @user_router.get("/{id}", response_model = UserOut)
