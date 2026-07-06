@@ -61,12 +61,13 @@ class UserUpdate(BaseModel):
 class TaskBase(BaseModel):
     title: str
     description: str | None = None
-    status: TaskStatus | None = TaskStatus.TODO
+    status: TaskStatus | None = TaskStatus.BACKLOG
     priority: TaskPriority | None = TaskPriority.MEDIUM
     start_date: str | None = None
     end_date: str | None = None
     tags: str | None = None  # comma-separated
     assignee_id: int | None = None
+    due_at: datetime | None = None
 
 class TaskCreate(TaskBase):
     board_id: int
@@ -81,6 +82,7 @@ class TaskUpdate(BaseModel):
     tags: str | None = None
     assignee_id: int | None = None
     board_id: int | None = None
+    due_at: datetime | None = None
 
 class TaskOut(TaskBase):
     id: int

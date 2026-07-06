@@ -16,6 +16,7 @@ class TeamRole(str, Enum):
 
 
 class TaskStatus(str, Enum):
+    BACKLOG = "backlog"
     TODO = "todo"
     IN_PROGRESS = "in-progress"
     DONE = "done"
@@ -54,8 +55,8 @@ class UserSession(Base):
     device_info = Column(String(256), nullable=True)
     ip_address = Column(String(50), nullable=True)
     is_revoked = Column(Boolean, default=False, nullable=False)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
 
     user = relationship("User", back_populates="sessions")
 
@@ -66,11 +67,12 @@ class Task(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(200), nullable=False)
     description = Column(String(500), nullable=True)
-    status = Column(SQLAlchemyEnum(TaskStatus), default=TaskStatus.TODO, nullable=False)
+    status = Column(SQLAlchemyEnum(TaskStatus), default=TaskStatus.BACKLOG, nullable=False)
     priority = Column(SQLAlchemyEnum(TaskPriority), default=TaskPriority.MEDIUM, nullable=False)
     start_date = Column(String(50), nullable=True)
     end_date = Column(String(50), nullable=True)
     tags = Column(String(200), nullable=True)  # comma-separated
+    due_at = Column(DateTime, nullable=True)  # Task Time Limit
     
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     assignee_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
