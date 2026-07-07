@@ -11,12 +11,11 @@ from ..security import (
     generate_refresh_token, 
     hash_token,
     get_current_active_user
-)
+) # uglyy
 from ..schemas import UserLogin, UserRegister, UserToken, UserSessionOut
 
 auth_router = APIRouter()
 
-# Session expiration defaults
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 
@@ -38,34 +37,37 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
     return db_user
 
 
 @auth_router.post("/login", response_model=UserToken, status_code=status.HTTP_201_CREATED)
 def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
+
     db_user = db.query(User).filter(User.email == user.email).first()
+
     if not db_user or not verify_password(user.password, str(db_user.hashed_password)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="invalid credentials"
         )
 
-    # Purge expired sessions for this user to prevent table bloat
+    # purge expired sessions for this user to prevent table bloat
     db.query(UserSession).filter(
         UserSession.user_id == db_user.id,
         UserSession.expires_at < datetime.now(timezone.utc)
     ).delete(synchronize_session=False)
 
-    # 1. Generate access and refresh tokens
+    # generate access and refresh tokens
     access_token = create_access_token({"sub": str(db_user.id)})
     raw_refresh_token = generate_refresh_token()
     hashed_ref_token = hash_token(raw_refresh_token)
 
-    # 2. Get client metadata
+    # get client metadata
     user_agent = request.headers.get("user-agent", "Unknown Device")
     client_ip = request.client.host if request.client else "Unknown IP"
 
-    # 3. Save session in the database
+    # save session 
     expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     session = UserSession(
         user_id=db_user.id,
