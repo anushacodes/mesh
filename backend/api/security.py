@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+from jose.exceptions import ExpiredSignatureError
 
 from .schemas import UserRegister, UserToken
 from .database.session import get_db
@@ -73,7 +74,7 @@ def decode_access_token(token: str):
     try:
         token_data = jwt.decode(token, SECRET_KEY, algorithms=[algorithm])
         return token_data
-    except jwt.ExpiredSignatureError:
+    except ExpiredSignatureError:
         raise HTTPException(
             status_code=401,
             detail="Token has expired"

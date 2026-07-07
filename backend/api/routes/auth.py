@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ..database.schema import User, UserSession
 from ..database.session import get_db
@@ -53,7 +53,7 @@ def login(user: UserLogin, request: Request, db: Session = Depends(get_db)):
     # Purge expired sessions for this user to prevent table bloat
     db.query(UserSession).filter(
         UserSession.user_id == db_user.id,
-        UserSession.expires_at < datetime.utcnow()
+        UserSession.expires_at < datetime.now(timezone.utc)
     ).delete(synchronize_session=False)
 
     # 1. Generate access and refresh tokens
