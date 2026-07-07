@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getBoards, createBoard, deleteBoard, createTeam, addTeamMember, getTeamMembers } from "@/lib/api";
+import { getBoards, createBoard, deleteBoard, createTeam, addTeamMember, getTeamMembers, updateTeam } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,19 +47,27 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
   const [boardOpen, setBoardOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [quickInviteOpen, setQuickInviteOpen] = useState(false);
+  const [editTeamOpen, setEditTeamOpen] = useState(false);
 
-  // Scoped creation states
+  // Scoped states
   const [selectedTeamForBoard, setSelectedTeamForBoard] = useState<Team | null>(null);
   const [selectedTeamForInvite, setSelectedTeamForInvite] = useState<Team | null>(null);
+  const [selectedTeamForEdit, setSelectedTeamForEdit] = useState<Team | null>(null);
 
-  // Form states
+  // Create Board form states
   const [boardName, setBoardName] = useState("");
   const [boardDesc, setBoardDesc] = useState("");
   const [boardError, setBoardError] = useState("");
 
+  // Create Team form states
   const [teamName, setTeamName] = useState("");
   const [teamDesc, setTeamDesc] = useState("");
   const [teamError, setTeamError] = useState("");
+
+  // Edit Team form states
+  const [editTeamName, setEditTeamName] = useState("");
+  const [editTeamDesc, setEditTeamDesc] = useState("");
+  const [editTeamError, setEditTeamError] = useState("");
 
   // Invite states
   const [inviteEmail, setInviteEmail] = useState("");
@@ -129,11 +137,36 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
       setTeamOpen(false);
       refreshTeams(); // Update App.tsx teams state
       
-      // Auto-open quick invite for the newly created team!
+      // Auto-open quick invite for the newly created team
       setSelectedTeamForInvite(newTeam);
       setQuickInviteOpen(true);
     } catch (err: unknown) {
       setTeamError(err instanceof Error ? err.message : "Failed to create team");
+    }
+  }
+
+  // Pre-fill Edit Team fields
+  const handleOpenEditTeam = (team: Team) => {
+    setSelectedTeamForEdit(team);
+    setEditTeamName(team.name);
+    setEditTeamDesc(team.description || "");
+    setEditTeamError("");
+    setEditTeamOpen(true);
+  };
+
+  async function handleEditTeam(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedTeamForEdit) return;
+    setEditTeamError("");
+    try {
+      await updateTeam(selectedTeamForEdit.id, {
+        name: editTeamName,
+        description: editTeamDesc,
+      });
+      setEditTeamOpen(false);
+      refreshTeams(); // Refresh lists
+    } catch (err: unknown) {
+      setEditTeamError(err instanceof Error ? err.message : "Failed to update team");
     }
   }
 
@@ -221,7 +254,7 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
             </Dialog>
           )}
 
-          {/* Create Board Button (only on Personal page since Work page creates boards inside specific teams) */}
+          {/* Create Board Button (only on Personal page) */}
           {scope === "personal" && (
             <Dialog open={boardOpen} onOpenChange={setBoardOpen}>
               <DialogTrigger asChild>
@@ -258,7 +291,37 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
         </div>
       </div>
 
-      {/* Quick Invite Dialog (Shared popup for inline invites) */}
+      {/* Edit Team Settings Dialog */}
+      <Dialog open={editTeamOpen} onOpenChange={setEditTeamOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Team Settings</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditTeam} className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="editTeamName">Team Name</Label>
+              <Input
+                id="editTeamName"
+                value={editTeamName}
+                onChange={(e) => setEditTeamName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="editTeamDesc">Description</Label>
+              <Input
+                id="editTeamDesc"
+                value={editTeamDesc}
+                onChange={(e) => setEditTeamDesc(e.target.value)}
+              />
+            </div>
+            {editTeamError && <p className="text-sm text-red-500">{editTeamError}</p>}
+            <Button type="submit">Save Changes</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Invite Dialog */}
       <Dialog open={quickInviteOpen} onOpenChange={(open) => {
         setQuickInviteOpen(open);
         if (!open) {
@@ -379,7 +442,17 @@ export default function Dashboard({ teams, scope, refreshTeams, onSelectBoard }:
                     {/* Team Workspace Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-muted">
                       <div>
-                        <h2 className="text-lg font-bold">{team.name}</h2>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold">{team.name}</h2>
+                          {/* Edit Team Settings inline trigger */}
+                          <button
+                            onClick={() => handleOpenEditTeam(team)}
+                            className="text-muted-foreground hover:text-foreground text-[10px] bg-muted/50 hover:bg-muted px-1.5 py-0.5 rounded transition-all outline-none"
+                            title="Edit Team Details"
+                          >
+                            Edit
+                          </button>
+                        </div>
                         {team.description && (
                           <p className="text-xs text-muted-foreground mt-0.5">{team.description}</p>
                         )}

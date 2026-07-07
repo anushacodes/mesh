@@ -4,7 +4,7 @@ import RegisterPage from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import BoardPage from "@/pages/BoardPage";
 import ProfilePage from "@/pages/Profile";
-import { getCurrentUser, getTeams } from "@/lib/api";
+import { getCurrentUser, getTeams, logoutUser } from "@/lib/api";
 
 type UserProfile = {
   id: number;
@@ -139,8 +139,7 @@ export default function App() {
 
             <button
               onClick={() => {
-                localStorage.removeItem("token");
-                window.location.href = "/";
+                logoutUser();
               }}
               className="text-xs text-destructive hover:text-destructive/80 transition-colors font-medium border border-destructive/20 rounded px-3 py-1.5 bg-background hover:bg-destructive/5"
             >

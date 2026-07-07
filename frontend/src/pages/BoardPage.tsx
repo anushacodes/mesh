@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getTasks, createTask, deleteTask, updateTask, getTeamMembers } from "@/lib/api";
+import { getTasks, createTask, deleteTask, updateTask, getTeamMembers, updateBoard } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ type Task = {
   tags?: string;
   owner_id: number;
   assignee_id?: number | null;
+  due_at?: string | null;
 };
 
 type UserProfile = {
@@ -51,8 +52,10 @@ type BoardPageProps = {
   setNewTaskOpen: (open: boolean) => void;
 };
 
+// 4 Columns: Backlog, To Do, In Progress, Done
 const COLUMNS = [
-  { key: "todo", label: "Backlog" },
+  { key: "backlog", label: "Backlog" },
+  { key: "todo", label: "To Do" },
   { key: "in-progress", label: "In Progress" },
   { key: "done", label: "Done" },
 ];
@@ -69,6 +72,10 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Local Board Identity States
+  const [localBoardName, setLocalBoardName] = useState(board.name);
+  const [localBoardDesc, setLocalBoardDesc] = useState(board.description || "");
+
   // Create Task states
   const [formError, setFormError] = useState("");
   const [title, setTitle] = useState("");
@@ -76,6 +83,7 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
   const [priority, setPriority] = useState("medium");
   const [tagsInput, setTagsInput] = useState("");
   const [assigneeId, setAssigneeId] = useState("unassigned");
+  const [dueAt, setDueAt] = useState("");
 
   // Edit Task states
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -85,7 +93,20 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
   const [editPriority, setEditPriority] = useState("");
   const [editTags, setEditTags] = useState("");
   const [editAssigneeId, setEditAssigneeId] = useState<string>("unassigned");
+  const [editDueAt, setEditDueAt] = useState("");
   const [editError, setEditError] = useState("");
+
+  // Edit Board states
+  const [editBoardOpen, setEditBoardOpen] = useState(false);
+  const [boardFormName, setBoardFormName] = useState(board.name);
+  const [boardFormDesc, setBoardFormDesc] = useState(board.description || "");
+  const [boardFormError, setBoardFormError] = useState("");
+
+  // Sync board name/description when board prop changes
+  useEffect(() => {
+    setLocalBoardName(board.name);
+    setLocalBoardDesc(board.description || "");
+  }, [board]);
 
   // Fetch tasks
   useEffect(() => {
@@ -114,7 +135,16 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
     setEditPriority(task.priority);
     setEditTags(task.tags || "");
     setEditAssigneeId(task.assignee_id ? task.assignee_id.toString() : "unassigned");
+    // Format UTC string into datetime-local format: YYYY-MM-DDTHH:MM
+    setEditDueAt(task.due_at ? task.due_at.substring(0, 16) : "");
     setEditError("");
+  };
+
+  const handleOpenEditBoard = () => {
+    setBoardFormName(localBoardName);
+    setBoardFormDesc(localBoardDesc);
+    setBoardFormError("");
+    setEditBoardOpen(true);
   };
 
   async function handleCreate(e: React.FormEvent) {
@@ -125,16 +155,18 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
         title,
         board_id: board.id,
         description,
-        status: "todo",
+        status: "backlog", // New tasks default to Backlog
         priority,
         ...(tagsInput ? { tags: tagsInput } : {}),
-        assignee_id: assigneeId === "unassigned" ? null : parseInt(assigneeId)
+        assignee_id: assigneeId === "unassigned" ? null : parseInt(assigneeId),
+        due_at: dueAt ? new Date(dueAt).toISOString() : null,
       });
       setTitle("");
       setDescription("");
       setPriority("medium");
       setTagsInput("");
       setAssigneeId("unassigned");
+      setDueAt("");
       setNewTaskOpen(false);
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: unknown) {
@@ -154,12 +186,29 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
         priority: editPriority,
         tags: editTags || null,
         assignee_id: editAssigneeId === "unassigned" ? null : parseInt(editAssigneeId),
+        due_at: editDueAt ? new Date(editDueAt).toISOString() : null,
       };
       await updateTask(editingTask.id, payload);
       setEditingTask(null);
       setRefreshTrigger((prev) => prev + 1);
     } catch (err: unknown) {
       setEditError(err instanceof Error ? err.message : "Failed to update task");
+    }
+  }
+
+  async function handleEditBoardSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setBoardFormError("");
+    try {
+      await updateBoard(board.id, {
+        name: boardFormName,
+        description: boardFormDesc,
+      });
+      setLocalBoardName(boardFormName);
+      setLocalBoardDesc(boardFormDesc);
+      setEditBoardOpen(false);
+    } catch (err: unknown) {
+      setBoardFormError(err instanceof Error ? err.message : "Failed to update board");
     }
   }
 
@@ -174,7 +223,7 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
     }
   }
 
-  // Get correct user initials based on full name string
+  // Get initials for assignee bubbles
   function getInitials(name: string) {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
@@ -184,7 +233,7 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
   const isTeamBoard = board.team_id !== null && board.team_id !== undefined;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 max-w-7xl mx-auto">
       {/* Header and Back navigation */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex flex-col gap-1">
@@ -194,15 +243,55 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
           >
             ← Back to Dashboard
           </button>
-          <h1 className="text-xl font-bold">{board.name}</h1>
-          {board.description && (
-            <p className="text-xs text-muted-foreground">{board.description}</p>
+          
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold">{localBoardName}</h1>
+            <button
+              onClick={handleOpenEditBoard}
+              className="text-muted-foreground hover:text-foreground text-[10px] bg-muted/50 hover:bg-muted px-1.5 py-0.5 rounded transition-all outline-none"
+              title="Edit Board Title"
+            >
+              Edit
+            </button>
+          </div>
+          {localBoardDesc && (
+            <p className="text-xs text-muted-foreground">{localBoardDesc}</p>
           )}
         </div>
         
         {/* New Task Button */}
         <Button onClick={() => setNewTaskOpen(true)}>+ New Task</Button>
       </div>
+
+      {/* Edit Board Identity Dialog */}
+      <Dialog open={editBoardOpen} onOpenChange={setEditBoardOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Board Settings</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditBoardSubmit} className="flex flex-col gap-4 mt-2">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="boardFormName">Board Name</Label>
+              <Input
+                id="boardFormName"
+                value={boardFormName}
+                onChange={(e) => setBoardFormName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="boardFormDesc">Description</Label>
+              <Input
+                id="boardFormDesc"
+                value={boardFormDesc}
+                onChange={(e) => setBoardFormDesc(e.target.value)}
+              />
+            </div>
+            {boardFormError && <p className="text-sm text-red-500">{boardFormError}</p>}
+            <Button type="submit">Save Changes</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Task Dialog */}
       <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
@@ -223,19 +312,34 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
               <Label htmlFor="tags">Tags (comma-separated)</Label>
               <Input id="tags" placeholder="frontend, bug" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} />
             </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="priority">Priority</Label>
-              <select
-                id="priority"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="border rounded-md px-3 py-2 text-sm bg-background"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="urgent">Urgent</option>
-              </select>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="priority">Priority</Label>
+                <select
+                  id="priority"
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm bg-background"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+
+              {/* Time Limit Input */}
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="dueAt">Time Limit</Label>
+                <Input
+                  id="dueAt"
+                  type="datetime-local"
+                  value={dueAt}
+                  onChange={(e) => setDueAt(e.target.value)}
+                  className="h-[38px] text-xs"
+                />
+              </div>
             </div>
 
             {/* Assignee selection inside Create Dialog (only on team boards) */}
@@ -318,6 +422,18 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                 </div>
               </div>
 
+              {/* Time Limit Edit Input */}
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="editDueAt">Time Limit</Label>
+                <Input
+                  id="editDueAt"
+                  type="datetime-local"
+                  value={editDueAt}
+                  onChange={(e) => setEditDueAt(e.target.value)}
+                  className="h-[38px] text-xs"
+                />
+              </div>
+
               {/* Assignee selection: only visible on Team Boards */}
               {isTeamBoard && (
                 <div className="flex flex-col gap-1">
@@ -355,15 +471,15 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
         </DialogContent>
       </Dialog>
 
-      {/* Kanban columns */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Kanban columns (now 4 columns grid) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {COLUMNS.map((col) => {
           const colTasks = tasks.filter((t) => t.status === col.key);
           return (
-            <div key={col.key} className="bg-muted/40 border rounded-xl p-4 flex flex-col min-h-[500px]">
+            <div key={col.key} className="bg-muted/40 border rounded-xl p-3 flex flex-col min-h-[500px]">
               {/* Column Title */}
               <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                <h2 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+                <h2 className="text-xs font-semibold text-foreground uppercase tracking-wider">
                   {col.label}
                 </h2>
                 <span className="h-5 min-w-5 px-1.5 flex items-center justify-center text-[10px] font-bold bg-muted-foreground/20 text-muted-foreground rounded-full">
@@ -384,6 +500,9 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                       assigneeName = matchedMember.name;
                     }
                   }
+
+                  // Evaluate if time limit has expired (and show notification badge)
+                  const isOverdue = task.due_at && new Date(task.due_at) < new Date() && task.status !== "done";
 
                   return (
                     <div
@@ -417,6 +536,21 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                         </div>
                       )}
 
+                      {/* Expiration Time Limit Indicators */}
+                      {task.due_at && (
+                        <div className="mt-3 flex items-center">
+                          {isOverdue ? (
+                            <span className="text-[9px] font-semibold text-red-500 bg-red-500/10 px-2 py-0.5 rounded flex items-center gap-1">
+                              ⚠️ Time Limit Expired (Demoted)
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-muted-foreground font-mono bg-muted/60 px-2 py-0.5 rounded">
+                              📅 Limit: {new Date(task.due_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Card Footer */}
                       <div className="flex items-center justify-between mt-4 pt-2.5 border-t border-muted/50">
                         {/* Task Priority */}
@@ -427,7 +561,6 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                         {/* Assignee Avatar */}
                         {isTeamBoard && (
                           task.assignee_id && assigneeName ? (
-                            /* Assigned member */
                             <div 
                               className="h-6 w-6 rounded-full bg-primary/10 text-primary border flex items-center justify-center text-[10px] font-bold select-none" 
                               title={`Assigned to: ${assigneeName}`}
@@ -435,7 +568,6 @@ export default function BoardPage({ board, user, onBack, newTaskOpen, setNewTask
                               {getInitials(assigneeName)}
                             </div>
                           ) : (
-                            /* Unassigned placeholder */
                             <div 
                               className="h-6 w-6 rounded-full bg-muted border border-dashed border-muted-foreground/30 text-muted-foreground/50 flex items-center justify-center text-xs font-bold select-none" 
                               title="Unassigned"
